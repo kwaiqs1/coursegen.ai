@@ -1,0 +1,27 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual env
+venv/
+.env
+*.env
+
+# PyCharm
+.idea/
+
+# Django / builds
+staticfiles/
+media/
+db.sqlite3
+
+# Node / frontend (если появится)
+node_modules/
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
