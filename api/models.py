@@ -26,3 +26,16 @@ class Module(models.Model):
     class Meta:
         ordering = ["order"]
         unique_together = [("course", "order")]
+
+
+
+
+class Lesson(models.Model):
+    module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name="lesson_set")
+    order = models.PositiveSmallIntegerField()
+    title = models.CharField(max_length=200)
+    content_json = models.JSONField(default=dict)  # весь структурный контент урока
+
+    class Meta:
+        ordering = ["order"]
+        unique_together = [("module", "order")]
