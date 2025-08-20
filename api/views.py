@@ -6,6 +6,9 @@ from pydantic import ValidationError
 from .ollama_client import call_ollama, parse_json_loose
 from .schemas import CourseBlueprint
 
+from django.db import transaction
+from .models import Course, Module
+
 # ──────────────────────────────────────────────────────────────────────────────
 # ЖЕСТКИЕ ИНСТРУКЦИИ ДЛЯ МОДЕЛИ
 # ──────────────────────────────────────────────────────────────────────────────
@@ -185,3 +188,63 @@ def generate_blueprint(request):
             {"detail": f"generation_error: {type(e).__name__}: {e}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
+
+
+
+
+
+@api_view(["POST"])
+def save_blueprint(request):
+    """
+    Принимает ровно тот JSON, который возвращает /api/generate/blueprint/,
+    создаёт Course и связные Module в БД, возвращает id курса.
+    """
+    data = request.data or {}
+    # валидация pydantic (на всякий случай)
+    try:
+        bp = CourseBlueprint(**data)
+    except Exception as e:
+        return Response({"detail": f"invalid_blueprint: {e}"}, status=400)
+
+    with transaction.atomic():
+        course = Course.objects.create(
+            owner=request.user if request.user.is_authenticated else None,
+            topic=bp.topic,
+            level=bp.level,
+            duration_weeks=bp.duration_weeks,
+            prerequisites_json=bp.prerequisites,
+            learning_outcomes_json=bp.learning_outcomes,
+            capstone=bp.capstone,
+            references_json=[r.model_dump(mode="json") for r in bp.references],
+        )
+        for idx, m in enumerate(bp.modules, start=1):
+            Module.objects.create(
+                course=course,
+                order=idx,
+                title=m.title,
+                objectives_json=m.objectives,
+                lessons=m.lessons,
+                quiz_items=m.quiz_items,
+                project=m.project,
+            )
+
+    return Response({"course_id": course.id}, status=201)
+
+
+
+
+@api_view(["GET"])
+def list_courses(request):
+    qs = Course.objects.all().order_by("-created_at")
+    out = []
+    for c in qs:
+        out.append({
+            "id": c.id,
+            "topic": c.topic,
+            "level": c.level,
+            "duration_weeks": c.duration_weeks,
+            "created_at": c.created_at.isoformat(),
+            "modules": c.modules.count(),
+        })
+    return Response(out, status=200)
