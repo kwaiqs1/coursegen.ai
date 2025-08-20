@@ -7,7 +7,7 @@ from .ollama_client import call_ollama, parse_json_loose
 from .schemas import CourseBlueprint
 
 from django.db import transaction
-from .models import Course, Module
+from .models import Course, Module, Lesson
 
 # ──────────────────────────────────────────────────────────────────────────────
 # ЖЕСТКИЕ ИНСТРУКЦИИ ДЛЯ МОДЕЛИ
@@ -248,3 +248,76 @@ def list_courses(request):
             "modules": c.modules.count(),
         })
     return Response(out, status=200)
+
+
+
+
+
+
+@api_view(["GET"])
+def list_courses(request):
+    qs = Course.objects.all().order_by("-created_at")
+    out = []
+    for c in qs:
+        out.append({
+            "id": c.id,
+            "topic": c.topic,
+            "level": c.level,
+            "duration_weeks": c.duration_weeks,
+            "created_at": c.created_at.isoformat(),
+            "modules": c.modules.count(),
+        })
+    return Response(out, status=200)
+
+
+# ───────────────────────────────────────────────
+# STEP C: Работа с уроками
+# ───────────────────────────────────────────────
+
+@api_view(["GET"])
+def list_lessons(request, module_id: int):
+    """Вернуть все уроки конкретного модуля"""
+    try:
+        module = Module.objects.get(id=module_id)
+    except Module.DoesNotExist:
+        return Response({"detail": "Module not found"}, status=404)
+
+    lessons = module.lesson_set.all().order_by("order")
+    data = [
+        {
+            "id": l.id,
+            "order": l.order,
+            "title": l.title,
+            "content_json": l.content_json,
+        }
+        for l in lessons
+    ]
+    return Response(data, status=200)
+
+
+@api_view(["POST"])
+def add_lesson(request, module_id: int):
+    """Добавить новый урок в модуль"""
+    try:
+        module = Module.objects.get(id=module_id)
+    except Module.DoesNotExist:
+        return Response({"detail": "Module not found"}, status=404)
+
+    data = request.data or {}
+    title = data.get("title") or "Untitled lesson"
+    content_json = data.get("content_json") or {}
+    order = int(data.get("order") or (module.lesson_set.count() + 1))
+
+    lesson = Lesson.objects.create(
+        module=module,
+        order=order,
+        title=title,
+        content_json=content_json,
+    )
+
+    return Response({
+        "id": lesson.id,
+        "order": lesson.order,
+        "title": lesson.title,
+        "content_json": lesson.content_json,
+    }, status=201)
