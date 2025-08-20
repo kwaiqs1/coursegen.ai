@@ -1,10 +1,11 @@
+from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import status
 
 from pydantic import ValidationError
 from .ollama_client import call_ollama, parse_json_loose
-from .schemas import CourseBlueprint
+from .schemas import CourseBlueprint, LessonContent
 
 from django.db import transaction
 from .models import Course, Module, Lesson
@@ -321,3 +322,46 @@ def add_lesson(request, module_id: int):
         "title": lesson.title,
         "content_json": lesson.content_json,
     }, status=201)
+
+
+
+
+
+
+
+
+@api_view(["POST"])
+def save_lesson(request):
+    """
+    Input JSON:
+    {
+      "course_id": 1,
+      "module_order": 1,
+      "lesson_order": 1,
+      "lesson": { ... LessonContent JSON ... }
+    }
+    """
+    body = request.data or {}
+    course_id = int(body.get("course_id") or 0)
+    module_order = int(body.get("module_order") or 1)
+    lesson_order = int(body.get("lesson_order") or 1)
+    lesson_data = body.get("lesson") or {}
+
+    # валидация урока
+    try:
+        lc = LessonContent(**lesson_data)
+    except Exception as e:
+        return Response({"detail": f"invalid_lesson: {e}"}, status=400)
+
+    course = get_object_or_404(Course, id=course_id)
+    module = get_object_or_404(Module, course=course, order=module_order)
+
+    obj, created = Lesson.objects.update_or_create(
+        module=module,
+        order=lesson_order,
+        defaults={
+            "title": lc.title,
+            "content_json": lc.model_dump(mode="json"),
+        }
+    )
+    return Response({"lesson_id": obj.id, "created": created}, status=201 if created else 200)
