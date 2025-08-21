@@ -3,84 +3,147 @@ from pathlib import Path
 from textwrap import dedent
 import json
 
-PY_DOC = "https://docs.python.org/3/"
+PY = "https://docs.python.org/3/"
+PEP8 = "https://peps.python.org/pep-0008/"
 
 FILES = {
+    # БАЗА
     "python_basics.md": f"""\
 # Python Basics
 Variables, expressions, printing, and the REPL.
 - Variables are created by assignment: `x = 10`
-- Use `print()` for output
 - Built-in types: int, float, str, bool, list, tuple, dict, set
-- Conversions: `int("3")`, `str(42)`
-See: {PY_DOC}
-""",
+- `print()` for output, f-strings for formatting
+See: {PY}""",
+
     "control_flow.md": f"""\
 # Control Flow
-`if/elif/else`, `for` loops, `while` loops, `break`/`continue`, `pass`.
-- `if x > 0: ... elif x == 0: ... else: ...`
-- `for item in iterable:`
-- `while condition:`
-- `break` exits loop; `continue` skips to next iteration.
-See: {PY_DOC}tutorial/controlflow.html
-""",
+if/elif/else, for, while, break, continue, pass.
+- Ternary: `a if cond else b`
+- Pattern matching (3.10+): `match x: case 0: ...`
+See: {PY}tutorial/controlflow.html""",
+
     "functions.md": f"""\
 # Functions
-Defining, calling, returning values, docstrings.
-- `def add(a, b): return a + b`
-- Default args, keyword args, *args, **kwargs
-- Pure functions and side effects
-See: {PY_DOC}tutorial/controlflow.html#defining-functions
-""",
-    "modules_packages.md": f"""\
-# Modules & Packages
-- `import math`, `from pathlib import Path import`
-- `pip` and virtual environments
-- Project layout and `__init__.py`
-See: {PY_DOC}tutorial/modules.html
-""",
+def, return, docstrings, default args, *args/**kwargs.
+- First-class functions, closures
+- Lambda, map/filter, list comprehensions
+See: {PY}tutorial/controlflow.html#defining-functions""",
+
+    "comprehensions.md": f"""\
+# Comprehensions
+List/Dict/Set comprehensions, generator expressions.
+- `[x*x for x in range(10) if x%2==0]`
+- `{k:v for k,v in pairs}`
+See: {PY}tutorial/datastructures.html""",
+
+    "datastructures.md": f"""\
+# Data Structures
+List/tuple/dict/set, deque, heapq, collections.
+- Mutability, copying vs references
+- Sorting: key, reverse, custom
+See: {PY}tutorial/datastructures.html""",
+
+    "iterators_generators.md": f"""\
+# Iterators & Generators
+- Iter protocol: __iter__/__next__
+- `yield`, generator functions, send/throw/close
+- itertools basics
+See: {PY}library/itertools.html""",
+
+    "decorators.md": f"""\
+# Decorators
+- Higher-order funcs, @decorator
+- functools.wraps, caching with lru_cache
+See: {PY}library/functools.html""",
+
+    "typing.md": f"""\
+# Typing
+- type hints, `list[int]`, `dict[str,int]`
+- `TypedDict`, `Protocol`, `dataclasses`
+- `mypy` basics
+See: {PY}library/typing.html""",
+
     "files_io.md": f"""\
 # Files & IO
-Open/read/write text files safely.
-- `with open("file.txt","r",encoding="utf-8") as f:`
-- `.read()`, `.readlines()`, iterate lines
-- Errors & exceptions for IO
-See: {PY_DOC}tutorial/inputoutput.html
-""",
+- `with open(..., encoding="utf-8") as f:`
+- read/readlines/iter lines; json/csv basics
+See: {PY}tutorial/inputoutput.html""",
+
     "exceptions.md": f"""\
 # Exceptions
-- `try/except/else/finally`
-- `raise ValueError("message")`
-- Custom exceptions
-See: {PY_DOC}tutorial/errors.html
-""",
-    "oop.md": f"""\
-# OOP in Python
-Classes, objects, methods, inheritance, `__init__`.
-- `class Point: def __init__(self,x,y): self.x=x; self.y=y`
-- Dunder methods, `__repr__`
-- Composition vs inheritance
-See: {PY_DOC}tutorial/classes.html
-""",
-    "testing.md": f"""\
-# Testing
-- `unittest` basics
-- `pytest` simple tests
-- Arrange-Act-Assert pattern
-See: {PY_DOC}library/unittest.html
-""",
+- try/except/else/finally
+- raise, custom exceptions
+- Context managers
+See: {PY}tutorial/errors.html""",
+
+    "modules_packages.md": f"""\
+# Modules & Packages
+- imports, __init__.py, sys.path
+- venv, pip basics
+See: {PY}tutorial/modules.html""",
+
+    "testing_pytest.md": f"""\
+# Testing with pytest
+- test_*.py, assert style
+- parametrize, fixtures, tmp_path
+See: https://docs.pytest.org/""",
+
     "style_pep8.md": f"""\
 # Code Style (PEP 8)
-- Naming, line length, imports, whitespace
-- `black`, `ruff` for automation
-See: https://peps.python.org/pep-0008/
+- Naming, imports, whitespace, line length
+- Tools: black, ruff
+See: {PEP8}""",
+
+    "oop.md": f"""\
+# OOP
+- classes, __init__, methods, properties
+- inheritance vs composition
+See: {PY}tutorial/classes.html""",
+
+    "asyncio.md": f"""\
+# Asyncio
+- async/await, tasks, gather
+- aiohttp basics
+See: {PY}library/asyncio.html""",
+
+    "sqlite.md": f"""\
+# SQLite
+- sqlite3 connect, execute, parameterized queries
+- context management
+See: {PY}library/sqlite3.html""",
+
+    "http_requests.md": f"""\
+# HTTP Requests
+- urllib.request basics
+- requests (3rd party) intro
+See: {PY}library/urllib.request.html""",
+
+    "regex.md": f"""\
+# Regular Expressions
+- re: compile, search, match, findall, groups
+- common patterns, flags
+See: {PY}library/re.html""",
+
+    "algorithms_basics.md": f"""\
+# Algorithms Basics
+- Big-O, arrays, linked lists, stacks, queues
+- Sorting: bubble, insertion, merge, quick (high-level)
+- Searching: linear, binary
 """,
+
+    "git_basics.md": f"""\
+# Git Basics
+- init, clone, status, add, commit, log
+- branch, merge, rebase (intro)
+- .gitignore
+""",
+
     "cli_projects.md": f"""\
 # CLI Projects
-- `argparse` for parameters
-- packaging simple tools
-See: {PY_DOC}library/argparse.html
-""",
+- argparse for flags
+- structuring small tools
+See: {PY}library/argparse.html""",
 }
 
 GOLDEN_COURSE = {
@@ -103,8 +166,8 @@ GOLDEN_COURSE = {
     ],
     "capstone": "Build a small command-line utility that processes a text file.",
     "references": [
-        {"title": "Python Official Docs", "url": PY_DOC, "license": "Docs"},
-        {"title": "PEP 8", "url": "https://peps.python.org/pep-0008/", "license": "Docs"}
+        {"title": "Python Official Docs", "url": PY, "license": "Docs"},
+        {"title": "PEP 8", "url": PEP8, "license": "Docs"}
     ]
 }
 
