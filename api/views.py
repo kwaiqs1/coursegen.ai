@@ -405,3 +405,138 @@ def rag_search(request):
     results = idx.search(q, top_k=top_k)
     out = [{"passage": p, "score": s} for p, s in results]
     return Response({"results": out}, status=200)
+
+
+
+
+
+
+
+
+
+
+
+LESSON_INSTR = """
+You are Course Lesson Writer AI.
+
+Return STRICT JSON ONLY matching this schema:
+{
+  "title": string,
+  "reading_time_min": integer (5..30),
+  "objectives": string[] (2..6 items, action verbs),
+  "theory_md": string,
+  "code_examples": [{"filename": string, "content": string}],
+  "quiz": [{"type":"mcq"|"short"|"code_output","question":string,"options":string[],"answer":string,"explain":string|null}] (3..15),
+  "exercise": {"task":string,"starter_files":[{"filename":string,"content":string}],"tests":[{"filename":string,"content":string}],"rubric":string[]},
+  "further_reading": [{"title":string,"url":string,"license":"MIT"|"BSD"|"Apache-2.0"|"CC-BY"|"Docs"}] (0..8)
+}
+
+HARD RULES:
+- JSON ONLY. No prose.
+- Code must be runnable and minimal. No nonexistent libs.
+- Respect the student's level and module objectives.
+"""
+
+
+
+def build_rag_context(query: str, k: int = 5) -> str:
+    idx = BM25Index()
+    if not RAG_INDEX_PATH.exists():
+        return ""
+    idx.load(RAG_INDEX_PATH)
+    results = idx.search(query, top_k=k)
+    blocks = []
+    for p, s in results:
+        blocks.append(f"[CTX score={s:.2f}]\n{p}")
+    return "\n\n".join(blocks)
+
+
+
+
+def clamp(n: int, lo: int, hi: int) -> int:
+    return max(lo, min(hi, int(n)))
+
+
+
+
+def repair_lesson(data: dict, topic: str) -> dict:
+    data = dict(data or {})
+    data.setdefault("title", f"{topic}: Lesson")
+    data["reading_time_min"] = clamp(data.get("reading_time_min", 10), 5, 30)
+
+    objs = list(data.get("objectives") or [])
+    while len(objs) < 2:
+        objs.append(f"Apply {topic} basics in small tasks")
+    data["objectives"] = objs[:6]
+
+    quiz = list(data.get("quiz") or [])
+    while len(quiz) < 3:
+        quiz.append({
+            "type": "mcq",
+            "question": f"Basic concept of {topic}?",
+            "options": ["Option A", "Option B", "Option C"],
+            "answer": "Option A",
+            "explain": "A simple recall question."
+        })
+    data["quiz"] = quiz[:15]
+
+    ex = dict(data.get("exercise") or {})
+    ex.setdefault("task", f"Write a small program related to {topic}.")
+    ex.setdefault("starter_files", [{"filename": "main.py", "content": "# TODO\n"}])
+    ex.setdefault("tests", [{"filename": "test_basic.py", "content": "def test_true():\n    assert True\n"}])
+    ex.setdefault("rubric", ["Correctness", "Style", "Edge cases"])
+    data["exercise"] = ex
+
+    data["code_examples"] = list(data.get("code_examples") or [])[:10]
+    data["further_reading"] = list(data.get("further_reading") or [])[:8]
+    return data
+
+
+
+
+@api_view(["POST"])
+def generate_lesson(request):
+    """
+    Input:
+    {
+      "course_id": 1,
+      "module_order": 1,
+      "lesson_order": 1
+    }
+    """
+    body = request.data or {}
+    course_id = int(body.get("course_id") or 0)
+    module_order = int(body.get("module_order") or 1)
+    lesson_order = int(body.get("lesson_order") or 1)
+
+    course = get_object_or_404(Course, id=course_id)
+    module = get_object_or_404(Module, course=course, order=module_order)
+
+    # RAG-контекст под тему и модуль
+    q = f"{course.topic} {module.title} {' '.join(module.objectives_json)}"
+    rag_ctx = build_rag_context(q, k=5)
+
+    context = f"""
+Course topic: {course.topic}
+Level: {course.level}
+Module: {module.title}
+Module objectives:
+- """ + "\n- ".join(module.objectives_json)
+
+    if rag_ctx:
+        context += "\n\nRAG CONTEXT (authoritative excerpts, do not contradict):\n" + rag_ctx
+
+    prompt = f"{LESSON_INSTR}\n\n{context}\n\nReturn JSON for lesson #{lesson_order}."
+
+    try:
+        raw = call_ollama(prompt)
+        as_json = parse_json_loose(raw)
+        try:
+            lc = LessonContent(**as_json)
+            return Response(lc.model_dump(mode='json'), status=200)
+        except ValidationError:
+            repaired = repair_lesson(as_json, course.topic)
+            lc = LessonContent(**repaired)
+            return Response(lc.model_dump(mode='json'), status=200)
+    except Exception as e:
+        return Response({"detail": f"generation_error: {type(e).__name__}: {e}"}, status=500)
