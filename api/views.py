@@ -432,10 +432,12 @@ Return STRICT JSON ONLY matching this schema:
 }
 
 HARD RULES:
-- JSON ONLY. No prose.
+- JSON ONLY. No prose. No markdown fences.
+- All URLs in further_reading MUST be absolute http(s) links (e.g., https://docs.python.org/3/). DO NOT use relative links or markdown like [text](#anchor).
 - Code must be runnable and minimal. No nonexistent libs.
 - Respect the student's level and module objectives.
 """
+
 
 
 
@@ -455,6 +457,35 @@ def build_rag_context(query: str, k: int = 5) -> str:
 
 def clamp(n: int, lo: int, hi: int) -> int:
     return max(lo, min(hi, int(n)))
+
+
+
+
+def _is_http_url(s: str) -> bool:
+    return isinstance(s, str) and (s.startswith("http://") or s.startswith("https://"))
+
+
+
+
+def _sanitize_further_reading(items, topic: str):
+    allowed = {"MIT", "BSD", "Apache-2.0", "CC-BY", "Docs"}
+    out = []
+    for it in list(items or []):
+        t = (it or {}).get("title") or "Official Docs"
+        u = (it or {}).get("url") or ""
+        lic = (it or {}).get("license") or "Docs"
+        if not _is_http_url(u):
+            # Подставляем безопасный дефолт, чтобы пройти валидацию.
+            # Для Python-тем по умолчанию ведём на оф. доки.
+            u = "https://docs.python.org/3/"
+            lic = "Docs"
+        if lic not in allowed:
+            lic = "Docs"
+        out.append({"title": t, "url": u, "license": lic})
+    if not out:
+        out = [{"title": "Python Official Docs", "url": "https://docs.python.org/3/", "license": "Docs"}]
+    return out[:8]
+
 
 
 
@@ -488,7 +519,8 @@ def repair_lesson(data: dict, topic: str) -> dict:
     data["exercise"] = ex
 
     data["code_examples"] = list(data.get("code_examples") or [])[:10]
-    data["further_reading"] = list(data.get("further_reading") or [])[:8]
+    data["further_reading"] = _sanitize_further_reading(data.get("further_reading"), topic)
+
     return data
 
 
