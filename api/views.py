@@ -13,6 +13,9 @@ from .models import Course, Module, Lesson
 from pathlib import Path
 from .rag import BM25Index
 
+from django.http import HttpResponse
+from .exporter import export_course_zip
+
 # ──────────────────────────────────────────────────────────────────────────────
 # ЖЕСТКИЕ ИНСТРУКЦИИ ДЛЯ МОДЕЛИ
 # ──────────────────────────────────────────────────────────────────────────────
@@ -336,28 +339,24 @@ def add_lesson(request, module_id: int):
 @api_view(["POST"])
 def save_lesson(request):
     """
-    Input JSON:
+    Input:
     {
-      "course_id": 1,
-      "module_order": 1,
+      "module_id": 1,
       "lesson_order": 1,
       "lesson": { ... LessonContent JSON ... }
     }
     """
     body = request.data or {}
-    course_id = int(body.get("course_id") or 0)
-    module_order = int(body.get("module_order") or 1)
+    module_id = int(body.get("module_id") or 0)
     lesson_order = int(body.get("lesson_order") or 1)
     lesson_data = body.get("lesson") or {}
 
-    # валидация урока
     try:
         lc = LessonContent(**lesson_data)
     except Exception as e:
         return Response({"detail": f"invalid_lesson: {e}"}, status=400)
 
-    course = get_object_or_404(Course, id=course_id)
-    module = get_object_or_404(Module, course=course, order=module_order)
+    module = get_object_or_404(Module, id=module_id)
 
     obj, created = Lesson.objects.update_or_create(
         module=module,
@@ -572,3 +571,20 @@ Module objectives:
             return Response(lc.model_dump(mode='json'), status=200)
     except Exception as e:
         return Response({"detail": f"generation_error: {type(e).__name__}: {e}"}, status=500)
+
+
+
+
+
+
+
+@api_view(["GET"])
+def export_course(request, course_id: int):
+    try:
+        payload = export_course_zip(course_id)
+    except Course.DoesNotExist:
+        return Response({"detail": "Course not found"}, status=404)
+
+    resp = HttpResponse(payload, content_type="application/zip")
+    resp["Content-Disposition"] = f'attachment; filename="course_{course_id}.course.zip"'
+    return resp

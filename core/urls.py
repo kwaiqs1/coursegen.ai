@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.urls import path
-from api.views import ping, generate_blueprint, save_blueprint, list_courses, list_lessons, add_lesson, save_lesson, rag_search, generate_lesson
+from api.views import ping, generate_blueprint, save_blueprint, list_courses, list_lessons, add_lesson, save_lesson, rag_search, generate_lesson, export_course
 
 
 urlpatterns = [
@@ -14,4 +14,5 @@ urlpatterns = [
     path("api/lessons/save", save_lesson),
     path("api/rag/search/", rag_search),
     path("api/generate/lesson/", generate_lesson),
+    path("api/courses/<int:course_id>/export", export_course),
 ]
