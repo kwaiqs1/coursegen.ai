@@ -10,6 +10,9 @@ from .schemas import CourseBlueprint, LessonContent
 from django.db import transaction
 from .models import Course, Module, Lesson
 
+from pathlib import Path
+from .rag import BM25Index
+
 # ──────────────────────────────────────────────────────────────────────────────
 # ЖЕСТКИЕ ИНСТРУКЦИИ ДЛЯ МОДЕЛИ
 # ──────────────────────────────────────────────────────────────────────────────
@@ -365,3 +368,40 @@ def save_lesson(request):
         }
     )
     return Response({"lesson_id": obj.id, "created": created}, status=201 if created else 200)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+RAG_INDEX_PATH = Path("rag_index.pkl")
+
+@api_view(["POST"])
+def rag_search(request):
+    """
+    Input: {"query": "python loops", "top_k": 5}
+    """
+    payload = request.data or {}
+    q = (payload.get("query") or "").strip()
+    top_k = int(payload.get("top_k") or 5)
+    if not q:
+        return Response({"detail": "query is required"}, status=400)
+
+    idx = BM25Index()
+    if not RAG_INDEX_PATH.exists():
+        return Response({"detail": "RAG index not found. Run ingest_rag first."}, status=400)
+    idx.load(RAG_INDEX_PATH)
+
+    results = idx.search(q, top_k=top_k)
+    out = [{"passage": p, "score": s} for p, s in results]
+    return Response({"results": out}, status=200)
